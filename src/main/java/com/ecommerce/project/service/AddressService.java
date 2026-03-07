@@ -11,11 +11,14 @@ public interface AddressService {
 
     List<AddressDTO> getAddresses();
 
-    AddressDTO getAddressesById(Long addressId);
+    // Added User parameter
+    AddressDTO getAddressesById(Long addressId, User user);
 
     List<AddressDTO> getUserAddresses(User user);
 
-    AddressDTO updateAddress(Long addressId, AddressDTO addressDTO);
+    // Added User parameter
+    AddressDTO updateAddress(Long addressId, AddressDTO addressDTO, User user);
 
-    String deleteAddress(Long addressId);
+    // Added User parameter
+    String deleteAddress(Long addressId, User user);
 }

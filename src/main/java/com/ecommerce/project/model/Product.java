@@ -14,6 +14,8 @@ import java.util.List;
 @AllArgsConstructor
 @Table(name = "products" )
 @ToString
+@Getter
+@Setter
 public class Product {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)

@@ -1,12 +1,13 @@
 package com.ecommerce.project.payload;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Getter
+@Setter
 public class ProductDTO {
     private Long productId;
     private String productName;

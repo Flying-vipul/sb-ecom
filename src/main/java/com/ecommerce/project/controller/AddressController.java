@@ -6,12 +6,10 @@ import com.ecommerce.project.service.AddressService;
 import com.ecommerce.project.util.AuthUtil;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.net.http.HttpResponse;
 import java.util.List;
 
 @RestController
@@ -27,10 +25,11 @@ public class AddressController {
     @PostMapping("/addresses")
     public ResponseEntity<AddressDTO> createAddress(@Valid @RequestBody AddressDTO addressDTO) {
         User user = authUtil.loggedInUser();
-        AddressDTO savedAddressDTO = addressService.createAddress(addressDTO,user);
+        AddressDTO savedAddressDTO = addressService.createAddress(addressDTO, user);
         return new ResponseEntity<>(savedAddressDTO, HttpStatus.CREATED);
     }
 
+    // NOTE: This endpoint should ideally be restricted to ADMINs only in your security config!
     @GetMapping("/addresses")
     public ResponseEntity<List<AddressDTO>> getAddress() {
         List<AddressDTO> addressList = addressService.getAddresses();
@@ -39,7 +38,9 @@ public class AddressController {
 
     @GetMapping("/addresses/{addressId}")
     public ResponseEntity<AddressDTO> getAddressById(@PathVariable Long addressId) {
-        AddressDTO addressDTO = addressService.getAddressesById(addressId);
+        User user = authUtil.loggedInUser();
+        // Passed user down to verify ownership
+        AddressDTO addressDTO = addressService.getAddressesById(addressId, user);
         return new ResponseEntity<>(addressDTO, HttpStatus.OK);
     }
 
@@ -51,16 +52,19 @@ public class AddressController {
     }
 
     @PutMapping("/addresses/{addressId}")
-    public ResponseEntity<AddressDTO> updateAddressById(@PathVariable Long addressId
-            , @RequestBody AddressDTO addressDTO) {
-        AddressDTO updatedAddress = addressService.updateAddress(addressId , addressDTO);
+    public ResponseEntity<AddressDTO> updateAddressById(@PathVariable Long addressId,
+                                                        @RequestBody AddressDTO addressDTO) {
+        User user = authUtil.loggedInUser();
+        // Passed user down to verify ownership
+        AddressDTO updatedAddress = addressService.updateAddress(addressId, addressDTO, user);
         return new ResponseEntity<>(updatedAddress, HttpStatus.OK);
     }
 
-    @DeleteMapping("addresses/{addressId}")
+    @DeleteMapping("/addresses/{addressId}") // Fixed missing slash here
     public ResponseEntity<String> deleteAddress(@PathVariable Long addressId) {
-        String status = addressService.deleteAddress(addressId);
+        User user = authUtil.loggedInUser();
+        // Passed user down to verify ownership
+        String status = addressService.deleteAddress(addressId, user);
         return new ResponseEntity<>(status, HttpStatus.OK);
     }
-
 }
