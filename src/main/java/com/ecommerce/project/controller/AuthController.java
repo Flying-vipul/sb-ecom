@@ -3,6 +3,7 @@ package com.ecommerce.project.controller;
 import com.ecommerce.project.model.AppRole;
 import com.ecommerce.project.model.Role;
 import com.ecommerce.project.model.User;
+import com.ecommerce.project.payload.OtpVerificationRequest;
 import com.ecommerce.project.repositories.RoleRepository;
 import com.ecommerce.project.repositories.UserRepository;
 import com.ecommerce.project.security.jwt.JwtUtils;
@@ -12,6 +13,8 @@ import com.ecommerce.project.security.request.SignupRequest;
 import com.ecommerce.project.security.response.MessageResponse;
 import com.ecommerce.project.security.response.UserInfoResponse;
 import com.ecommerce.project.security.services.UserDetailsImpl;
+import com.ecommerce.project.service.AuthService;
+import com.ecommerce.project.service.EmailService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -47,8 +50,24 @@ public class AuthController  {
     @Autowired
     RoleRepository roleRepository;
 
+    // INJECT THE NEW ZAPPIT ENGINES HERE
+    @Autowired
+    AuthService authService;
+
+    @Autowired
+    EmailService emailService;
+
     @PostMapping("/signin")
     public ResponseEntity<?> authenticationUser(@RequestBody LoginRequest loginRequest) {
+
+        // ZAPPIT SECURITY BLOCK: Check if user verified their email before letting them log in
+        User user = userRepository.findByUserName(loginRequest.getUsername()).orElse(null);
+        if (user != null && !user.isVerified()) {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new MessageResponse("Error: Please verify your email with the OTP before logging in."));
+        }
+
         Authentication authentication;
         try{
             authentication = authenticationManager.authenticate(
@@ -90,7 +109,7 @@ public class AuthController  {
                     .body(new MessageResponse("Error : Username is already taken!"));
         }
 
-        if (userRepository.existsByEmail(signupRequest.getUsername())) {
+        if (userRepository.existsByEmail(signupRequest.getEmail())) {
             return ResponseEntity
                     .badRequest()
                     .body(new MessageResponse("Error : Email is already taken!"));
@@ -116,7 +135,7 @@ public class AuthController  {
             strRoles.forEach(role -> {
                 switch (role) {
                     case "admin" :
-                        Role adminRole = roleRepository.findByRoleName(AppRole.ROLE_USER)
+                        Role adminRole = roleRepository.findByRoleName(AppRole.ROLE_ADMIN)
                                 .orElseThrow(() -> new RuntimeException(("Error : Role is Not Found")));
                         roles.add(adminRole);
 
@@ -137,9 +156,37 @@ public class AuthController  {
 
         user.setRoles(roles);
         userRepository.save(user);
-        return ResponseEntity.ok(new MessageResponse("User registered Successfully!"));
 
+        // 2. TRIGGER THE ZAPPIT OTP ENGINE
+        try {
+            String generatedOtp = authService.generateAndSetOtp(user.getEmail());
+            emailService.sendOtpEmail(user.getEmail(), generatedOtp);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(new MessageResponse("User registered, but failed to send OTP email."));
+        }
+
+        // 3. Tell React to show the OTP entry screen
+        return ResponseEntity.ok(new MessageResponse("User registered Successfully! Please check your email for the 6-digit verification code."));
     }
+
+    // ==========================================
+    // NEW ENDPOINT: REACT CALLS THIS TO VERIFY
+    // ==========================================
+    @PostMapping("/verify-otp")
+    public ResponseEntity<?> verifyOtp(@Valid @RequestBody OtpVerificationRequest request) {
+        try {
+            boolean isVerified = authService.verifyOtp(request.getEmail(), request.getOtp());
+            if (isVerified) {
+                return ResponseEntity.ok(new MessageResponse("Account successfully verified! You can now log in."));
+            }
+            return ResponseEntity.badRequest().body(new MessageResponse("Verification failed."));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(new MessageResponse(e.getMessage()));
+        }
+    }
+
+    // ... (Your existing /username, /user, and /signout methods stay exactly the same down here) ...
 
     @GetMapping("/username")
     public String currentUserName(Authentication authentication) {

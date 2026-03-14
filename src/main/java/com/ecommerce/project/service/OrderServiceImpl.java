@@ -44,6 +44,8 @@ public class OrderServiceImpl implements OrderService{
 
 
 
+
+
     @Transactional
     @Override
     public OrderDTO placeOrder(String emailId, Long addressId, String paymentMethod, String pgName, String pgPaymentId, String pgStatus, String pgResponseMessage) {        //Getting user cart;
@@ -63,7 +65,7 @@ public class OrderServiceImpl implements OrderService{
         order.setAddress(address);
 
         Payment payment = new Payment(paymentMethod ,pgPaymentId, pgStatus, pgResponseMessage,pgName);
-        payment.setOrder(order);
+//        payment.setOrder(order);
         payment = paymentRepository.save(payment);
         order.setPayment(payment);
         Order savedOrder = orderRepository.save(order);
@@ -96,8 +98,9 @@ public class OrderServiceImpl implements OrderService{
             productRepository.save(product);
 
             //Clear the cart
-            cartService.deleteProductFromCart(cart.getCartId(),item.getProduct().getProductId());
+
         });
+        cartService.clearCart(cart.getCartId());
 
         //send back the order summary
         OrderDTO orderDTO = modelMapper.map(savedOrder, OrderDTO.class);

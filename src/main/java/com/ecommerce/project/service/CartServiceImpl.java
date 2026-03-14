@@ -16,10 +16,8 @@ import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import com.ecommerce.project.model.Product;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -293,4 +291,10 @@ public class CartServiceImpl implements CartService {
         cartRepository.save(existingCart);
         return "Cart successfully synced and updated!";
     }
+
+    @Override
+    public void clearCart(Long cartId) {
+
+    }
+
 }

@@ -15,5 +15,10 @@ public class OrderRequestDTO {
     private String pgStatus;
     private String pgResponseMessage;
 
+    private String razorpayOrderId;
+
+    private String razorpaySignature;
+
+
 
 }

@@ -9,6 +9,7 @@ import lombok.*;
 import lombok.ToString;
 import org.hibernate.annotations.Cascade;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -44,6 +45,28 @@ public class User {
     @Size(max = 120)
     @Column(name = "password")
     private String password;
+
+    // ==========================================
+    // ZAPPIT SECURITY & OTP VERIFICATION FIELDS
+    // ==========================================
+
+    @Column(name = "is_verified", nullable = false)
+    private boolean isVerified = false;
+
+    // @Size ignores nulls, so it only validates when an OTP is actually set
+    @Size(min = 6, max = 6, message = "OTP must be exactly 6 digits")
+    @Column(name = "otp", length = 6)
+    private String otp;
+
+    @Column(name = "otp_expiry")
+    private LocalDateTime otpExpiry;
+
+    // Forces the DB to never allow nulls here, defaulting to 0
+    @Column(name = "otp_attempts", nullable = false)
+    private int otpAttempts = 0;
+
+    @Column(name = "account_locked_until")
+    private LocalDateTime accountLockedUntil;
 
     public User(String userName, String email, String password) {
         this.userName = userName;
