@@ -34,18 +34,34 @@ public class MyGlobalExceptionHandler {
         return new ResponseEntity<Map<String,String>>(response, HttpStatus.BAD_REQUEST);
     }
 
-    @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<APIResponse> myResourceNotFoundException(ResourceNotFoundException e) {
-        String message = e.getMessage();
-        APIResponse apiResponse = new APIResponse(message, false);
-       return new ResponseEntity<>(apiResponse,HttpStatus.NOT_FOUND);
-    }
+//    @ExceptionHandler(ResourceNotFoundException.class)
+//    public ResponseEntity<APIResponse> myResourceNotFoundException(ResourceNotFoundException e) {
+//        String message = e.getMessage();
+//        APIResponse apiResponse = new APIResponse(message, false);
+//       return new ResponseEntity<>(apiResponse,HttpStatus.NOT_FOUND);
+//    }
 
     @ExceptionHandler(APIException.class)
     public ResponseEntity<APIResponse> myAPIException(APIException e) {
         String message = e.getMessage();
         APIResponse apiResponse = new APIResponse(message,false);
         return new ResponseEntity<>(apiResponse,HttpStatus.BAD_REQUEST);
+    }
+
+    // This tells Spring to run this method whenever a ResourceNotFoundException is thrown
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> resourceNotFoundExceptionHandler(ResourceNotFoundException ex) {
+
+        // Create a custom JSON response body using a Map
+        Map<String, Object> response = new HashMap<>();
+
+        // ex.getMessage() will grab the "Order not found with orderId : X" string you created
+        response.put("message", ex.getMessage());
+        response.put("success", false);
+        response.put("status", HttpStatus.NOT_FOUND.value());
+
+        // Return the custom Map with a 404 status code
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
 
