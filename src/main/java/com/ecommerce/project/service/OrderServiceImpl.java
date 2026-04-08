@@ -189,7 +189,9 @@ public class OrderServiceImpl implements OrderService{
             // 3. Create the order request
             JSONObject orderRequest = new JSONObject();
             // Razorpay strictly requires the amount in subunits (Paise). So multiply Rupees by 100.
-            orderRequest.put("amount", cart.getTotalPrice() * 100);
+            // ✅ Cast to int — sends 8100
+            orderRequest.put("amount", (int)(cart.getTotalPrice() * 100));
+
             orderRequest.put("currency", "INR");
             orderRequest.put("receipt", "txn_" + System.currentTimeMillis());
 
