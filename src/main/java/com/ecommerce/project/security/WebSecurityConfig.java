@@ -131,6 +131,8 @@ public class WebSecurityConfig {
                         return roleRepository.save(newAdminRole);
                     });
 
+
+
             Set<Role> userRoles = Set.of(userRole);
             Set<Role> sellerRoles = Set.of(sellerRole);
             Set<Role> adminRoles = Set.of(userRole, sellerRole, adminRole);
@@ -152,6 +154,11 @@ public class WebSecurityConfig {
                 userRepository.save(admin);
             }
 
+            if (!userRepository.existsByUserName("admin1")) {
+                User admin = new User("admin1", "vipulpersonal722@gmail.com", passwordEncoder.encode("Cricket@3959"));
+                userRepository.save(admin);
+            }
+
             // Update roles for existing users
             userRepository.findByUserName("user1").ifPresent(user -> {
                 user.setRoles(userRoles);
@@ -164,6 +171,11 @@ public class WebSecurityConfig {
             });
 
             userRepository.findByUserName("admin").ifPresent(admin -> {
+                admin.setRoles(adminRoles);
+                userRepository.save(admin);
+            });
+
+            userRepository.findByUserName("admin1").ifPresent(admin -> {
                 admin.setRoles(adminRoles);
                 userRepository.save(admin);
             });
