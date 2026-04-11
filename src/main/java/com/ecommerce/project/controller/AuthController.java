@@ -15,7 +15,9 @@ import com.ecommerce.project.security.response.UserInfoResponse;
 import com.ecommerce.project.security.services.UserDetailsImpl;
 import com.ecommerce.project.service.AuthService;
 import com.ecommerce.project.service.EmailService;
+import com.ecommerce.project.service.FileService;
 import jakarta.validation.Valid;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -57,6 +59,9 @@ public class AuthController  {
     @Autowired
     EmailService emailService;
 
+    @Autowired
+    FileService fileService;
+
     @PostMapping("/signin")
     public ResponseEntity<?> authenticationUser(@RequestBody LoginRequest loginRequest) {
 
@@ -81,7 +86,7 @@ public class AuthController  {
             map.put("message", "Bad Credentials");
             map.put("Status" ,false);
 
-            return new ResponseEntity<Object>(map, HttpStatus.NOT_FOUND);
+            return new ResponseEntity<Object>(map, HttpStatus.UNAUTHORIZED);
         }
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -93,7 +98,9 @@ public class AuthController  {
         List<String> roles =userDetails.getAuthorities().stream()
                 .map(item -> item.getAuthority())
                 .toList();
-        UserInfoResponse response = new UserInfoResponse(userDetails.getId(),jwtCookie.getValue(), userDetails.getUsername(),roles);
+                
+        String profileImage = user != null ? user.getProfileImage() : null;
+        UserInfoResponse response = new UserInfoResponse(userDetails.getId(),jwtCookie.getValue(), userDetails.getUsername(),roles, profileImage);
 
         return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE,
                 jwtCookie.toString())
@@ -204,7 +211,11 @@ public class AuthController  {
         List<String> roles =userDetails.getAuthorities().stream()
                 .map(item -> item.getAuthority())
                 .toList();
-        UserInfoResponse response = new UserInfoResponse(userDetails.getId(),userDetails.getUsername(),roles);
+                
+        User userRecord = userRepository.findByUserName(userDetails.getUsername()).orElse(null);
+        String profileImage = userRecord != null ? userRecord.getProfileImage() : null;
+        
+        UserInfoResponse response = new UserInfoResponse(userDetails.getId(),userDetails.getUsername(),roles, profileImage);
 
         return ResponseEntity.ok().body(response);
     }
@@ -215,5 +226,28 @@ public class AuthController  {
         return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE,
                         cookie.toString())
                 .body(new MessageResponse("You've been signed out!"));
+    }
+
+    @PutMapping("/profile/image")
+    public ResponseEntity<UserInfoResponse> uploadProfileImage(@RequestParam("image") MultipartFile image) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        User user = userRepository.findByUserName(authentication.getName())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        try {
+            String imageUrl = fileService.uploadImage("profile", image);
+            user.setProfileImage(imageUrl);
+            userRepository.save(user);
+
+            UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+            List<String> roles = userDetails.getAuthorities().stream()
+                    .map(item -> item.getAuthority())
+                    .toList();
+            
+            UserInfoResponse response = new UserInfoResponse(userDetails.getId(), userDetails.getUsername(), roles, imageUrl);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            throw new RuntimeException("Image upload failed", e);
+        }
     }
 }
