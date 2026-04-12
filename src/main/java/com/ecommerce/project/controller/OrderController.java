@@ -84,4 +84,13 @@ public class OrderController {
         OrderResponse orderResponse = orderService.getAllSellerOrders(pageNumber, pageSize, sortBy, sortOrder);
         return new ResponseEntity<OrderResponse>(orderResponse, HttpStatus.OK);
     }
+
+    @GetMapping("/user/orders")
+    public ResponseEntity<java.util.List<OrderDTO>> getUserOrders() {
+        String emailId = authUtil.loggedInEmail();
+        java.util.List<OrderDTO> orders = orderService.getUserOrders(emailId);
+        return new ResponseEntity<>(orders, HttpStatus.OK);
+    }
+
+    
 }
