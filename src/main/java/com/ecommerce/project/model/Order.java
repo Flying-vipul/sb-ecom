@@ -3,7 +3,6 @@ package com.ecommerce.project.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import lombok.*;
-import org.apache.catalina.LifecycleState;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
