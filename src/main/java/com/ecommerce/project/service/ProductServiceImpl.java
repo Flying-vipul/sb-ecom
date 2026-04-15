@@ -2,15 +2,15 @@ package com.ecommerce.project.service;
 
 import com.ecommerce.project.exceptions.APIException;
 import com.ecommerce.project.exceptions.ResourceNotFoundException;
-import com.ecommerce.project.model.Cart;
-import com.ecommerce.project.model.Category;
-import com.ecommerce.project.model.Product;
+import com.ecommerce.project.model.*;
 import com.ecommerce.project.payload.CartDTO;
 import com.ecommerce.project.payload.ProductDTO;
 import com.ecommerce.project.payload.ProductResponse;
+import com.ecommerce.project.repositories.CartItemRepository;
 import com.ecommerce.project.repositories.CartRepository;
 import com.ecommerce.project.repositories.CategoryRepository;
 import com.ecommerce.project.repositories.ProductRepository;
+import com.ecommerce.project.util.AuthUtil;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.transaction.annotation.Transactional;
 import org.modelmapper.ModelMapper;
@@ -36,6 +36,7 @@ public class ProductServiceImpl implements ProductService{
 
     @Autowired
     private CartService cartService;
+
     @Autowired
     private ProductRepository productRepository;
 
@@ -48,12 +49,18 @@ public class ProductServiceImpl implements ProductService{
     @Autowired
     private FileService fileService;
 
+    @Autowired
+    AuthUtil authUtil;
+
+    @Autowired
+    CartItemRepository cartItemRepository;
+
+
     @Value("${project.image}")
     private String path;
 
     @Value("${image.base.url}")
     private String imageBaseUrl;
-
 
 
     @Override
@@ -84,7 +91,6 @@ public class ProductServiceImpl implements ProductService{
             throw new APIException("Product already exist");
         }
 
-
     }
 
     @Override
@@ -101,6 +107,10 @@ public class ProductServiceImpl implements ProductService{
 
 // WITH THIS (The modern standard):
         Specification<Product> spec = Specification.allOf();
+
+        spec = spec.and((root, query, criteriaBuilder) ->
+                criteriaBuilder.isTrue(root.get("isActive"))
+        );
 
 // 2. Keyword Search (Case-insensitive & Partial Match)
         if (keyword != null && !keyword.isEmpty()) {
@@ -121,6 +131,10 @@ public class ProductServiceImpl implements ProductService{
                     )
             );
         }
+
+
+
+
 
 // 4. Execute the query
         Page<Product> pageProducts = productRepository.findAll(spec, pageDetails);
@@ -147,8 +161,82 @@ public class ProductServiceImpl implements ProductService{
         return productResponse;
     }
 
+
+    @Override
+    public ProductResponse getAllProductsForAdmin(Integer pageNumber, Integer pageSize, String sortBy, String sortOrder) {
+        Sort sortByAndOrder = sortOrder.equalsIgnoreCase("asc")
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+
+        Pageable pageDetails = PageRequest.of(pageNumber, pageSize, sortByAndOrder);
+        // -> ADD THIS: Create a simple spec to only get active products
+        Specification<Product> spec = (root, query, criteriaBuilder) ->
+                criteriaBuilder.isTrue(root.get("isActive"));
+
+        // -> CHANGE THIS: Pass the spec into findAll
+        Page<Product> pageProducts = productRepository.findAll(spec,pageDetails);
+
+        List<Product> products = pageProducts.getContent();
+
+        List<ProductDTO> productDTOS = products.stream()
+                .map(product -> {
+                    ProductDTO productDTO = modelMapper.map(product, ProductDTO.class);
+                    productDTO.setImage(constructImageUrl(product.getImage()));
+                    return productDTO;
+                })
+                .toList();
+
+        ProductResponse productResponse = new ProductResponse();
+        productResponse.setContent(productDTOS);
+        productResponse.setPageNumber(pageProducts.getNumber());
+        productResponse.setPageSize(pageProducts.getSize());
+        productResponse.setTotalElements(pageProducts.getTotalElements());
+        productResponse.setTotalPages(pageProducts.getTotalPages());
+        productResponse.setLastPage(pageProducts.isLast());
+        return productResponse;
+    }
+
+    @Override
+    public ProductResponse getAllProductsForSeller(Integer pageNumber, Integer pageSize, String sortBy, String sortOrder) {
+        Sort sortByAndOrder = sortOrder.equalsIgnoreCase("asc")
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+
+        Pageable pageDetails = PageRequest.of(pageNumber, pageSize, sortByAndOrder);
+
+        User user = authUtil.loggedInUser();
+        Page<Product> pageProducts = productRepository.findByUser(user, pageDetails);
+
+        List<Product> products = pageProducts.getContent();
+
+        List<ProductDTO> productDTOS = products.stream()
+                .map(product -> {
+                    ProductDTO productDTO = modelMapper.map(product, ProductDTO.class);
+                    productDTO.setImage(constructImageUrl(product.getImage()));
+                    return productDTO;
+                })
+                .toList();
+
+        ProductResponse productResponse = new ProductResponse();
+        productResponse.setContent(productDTOS);
+        productResponse.setPageNumber(pageProducts.getNumber());
+        productResponse.setPageSize(pageProducts.getSize());
+        productResponse.setTotalElements(pageProducts.getTotalElements());
+        productResponse.setTotalPages(pageProducts.getTotalPages());
+        productResponse.setLastPage(pageProducts.isLast());
+        return productResponse;
+    }
+
+
+
     private String constructImageUrl(String imageName){
-        return imageBaseUrl.endsWith("/") ? imageBaseUrl + imageName :imageBaseUrl + "/" + imageName;
+        // 1. If it's already a full Cloudinary URL, just return it directly!
+        if (imageName != null && (imageName.startsWith("http://") || imageName.startsWith("https://"))) {
+            return imageName;
+        }
+
+        // 2. If it's the "default.png" or an old local image, append the backend URL
+        return imageBaseUrl.endsWith("/") ? imageBaseUrl + imageName : imageBaseUrl + "/" + imageName;
     }
 
     @Override
@@ -248,27 +336,82 @@ public class ProductServiceImpl implements ProductService{
 
     }
 
-    @Transactional // <--- Essential for hard deletes to ensure Cart cleanup happens first
+//    @Transactional // <--- Essential for hard deletes to ensure Cart cleanup happens first
+//    @Override
+//    public ProductDTO deleteProduct(Long productId) {
+//        // 1. Find the product (We need it to map it to DTO before deleting)
+//        Product product = productRepository.findById(productId)
+//                .orElseThrow(() -> new ResourceNotFoundException("Product", "productId", productId));
+//
+//        // 2. Remove this product from all Carts
+//        // CRITICAL: You must do this BEFORE the hard delete to avoid Foreign Key errors!
+//        List<Cart> carts = cartRepository.findCardByProductId(productId);
+//        carts.forEach(cart -> cartService.deleteProductFromCart(cart.getCartId(), productId));
+//
+//        // 3. HARD DELETE: Permanently remove the row from the database
+//        productRepository.delete(product);
+//
+//        // (Note: No need to call .save(), because the entity is gone)
+//
+//        // 4. Return the DTO of the deleted item
+//        // The Java object 'product' still exists in memory here, so we can map it
+//        return modelMapper.map(product, ProductDTO.class);
+//    }
+
+//    @Transactional
+//    @Override
+//    public ProductDTO deleteProduct(Long productId) {
+//        Product product = productRepository.findById(productId)
+//                .orElseThrow(() -> new ResourceNotFoundException("Product", "productId", productId));
+//
+//        // Step 1: Fix each cart's total price BEFORE wiping cart items
+//        List<Cart> carts = cartRepository.findCardByProductId(productId);
+//        carts.forEach(cart -> {
+//            CartItem cartItem = cartItemRepository.findCartItemByProductIdAndCartId(productId, cart.getCartId());
+//            if (cartItem != null) {
+//                cart.setTotalPrice(cart.getTotalPrice() - (cartItem.getProductPrice() * cartItem.getQuantity()));
+//                cartRepository.save(cart);
+//            }
+//        });
+//
+//        // Step 2: Delete all cart items via @Modifying (clearAutomatically evicts them from L1 cache)
+//        cartItemRepository.deleteAllByProductId(productId);
+//
+//        // Step 3: Now safe — no dangling references to remain in the session
+//        productRepository.delete(product);
+//
+//        return modelMapper.map(product, ProductDTO.class);
+//    }
+
+
+    @Transactional
     @Override
     public ProductDTO deleteProduct(Long productId) {
-        // 1. Find the product (We need it to map it to DTO before deleting)
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "productId", productId));
 
-        // 2. Remove this product from all Carts
-        // CRITICAL: You must do this BEFORE the hard delete to avoid Foreign Key errors!
+        // Step 1: Clean up the carts
         List<Cart> carts = cartRepository.findCardByProductId(productId);
-        carts.forEach(cart -> cartService.deleteProductFromCart(cart.getCartId(), productId));
+        carts.forEach(cart -> {
+            CartItem cartItem = cartItemRepository.findCartItemByProductIdAndCartId(productId, cart.getCartId());
+            if (cartItem != null) {
+                cart.setTotalPrice(cart.getTotalPrice() - (cartItem.getProductPrice() * cartItem.getQuantity()));
+                cartRepository.save(cart);
+            }
+        });
+        cartItemRepository.deleteAllByProductId(productId);
 
-        // 3. HARD DELETE: Permanently remove the row from the database
-        productRepository.delete(product);
+        // Step 2: SOFT DELETE
+        // Make sure this next line is DELETED or COMMENTED OUT:
+        // productRepository.delete(product);
 
-        // (Note: No need to call .save(), because the entity is gone)
+        // Make sure you are doing this INSTEAD:
+        product.setIsActive(false);
+        Product savedProduct = productRepository.save(product);
 
-        // 4. Return the DTO of the deleted item
-        // The Java object 'product' still exists in memory here, so we can map it
-        return modelMapper.map(product, ProductDTO.class);
+        return modelMapper.map(savedProduct, ProductDTO.class);
     }
+
 
     @Override
     public ProductDTO updateProductImage(Long productId, MultipartFile image) throws IOException {
@@ -307,5 +450,7 @@ public class ProductServiceImpl implements ProductService{
 
         return productDTOS;
     }
+
+
 
 }
