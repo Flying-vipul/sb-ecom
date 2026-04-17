@@ -10,6 +10,7 @@ import com.ecommerce.project.security.jwt.AuthTokenFilter;
 import com.ecommerce.project.service.UserDetailsServiceImpl;
 import jakarta.servlet.Filter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -39,6 +40,12 @@ public class WebSecurityConfig {
 
     @Autowired
     private AuthEntryPointJwt unauthorizedHandler;
+
+    @Value("${app.admin.email}")
+    private String adminEmail;
+
+    @Value("${app.admin.password}")
+    private String adminPassword;
 
     @Bean
     public AuthTokenFilter authenticationJwtTokenFilter() {
@@ -83,7 +90,7 @@ public class WebSecurityConfig {
                                 .requestMatchers("/h2-console/**").permitAll()
                                 .requestMatchers("/swagger-ui/**").permitAll()
                                 .requestMatchers("/api/public/**").permitAll()
-                                .requestMatchers("/api/admin/**").permitAll()
+                                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                                 .requestMatchers("/api/test/**").permitAll()
                                 .requestMatchers("/images/**").permitAll()
                                 .requestMatchers("/error").permitAll()
@@ -155,7 +162,7 @@ public class WebSecurityConfig {
             }
 
             if (!userRepository.existsByUserName("admin1")) {
-                User admin = new User("admin1", "vipulpersonal722@gmail.com", passwordEncoder.encode("Cricket@3959"));
+                User admin = new User("admin1", adminEmail, passwordEncoder.encode(adminPassword));
                 userRepository.save(admin);
             }
 
