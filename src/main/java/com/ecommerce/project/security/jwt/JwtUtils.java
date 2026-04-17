@@ -44,6 +44,15 @@ public class JwtUtils {
 //        return null;
 //    }
 
+    public String getJwtFromHeader(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        logger.debug("Authorization Header: {} ", bearerToken);
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
+    }
+
     public String getJwtFromCookies(HttpServletRequest request) {
         Cookie cookie = WebUtils.getCookie(request, jwtCookie);
         if (cookie != null) {
@@ -59,8 +68,9 @@ public class JwtUtils {
         ResponseCookie cookie = ResponseCookie.from(jwtCookie,jwt)
                 .path("/api")
                 .maxAge(24 * 60 * 60)
-                .httpOnly(false)
-                .secure(false)
+                .httpOnly(true)       // Changed to true to prevent JavaScript stealing the cookie
+                .secure(true)         // MUST be true for HTTPS / Cross-site
+                .sameSite("None")     // MUST be "None" to allow Netlify to read Render's cookie
                 .build();
         return cookie;
     }
@@ -68,6 +78,10 @@ public class JwtUtils {
     public ResponseCookie getCleanJwtCookie(){
         ResponseCookie cookie = ResponseCookie.from(jwtCookie,null)
                 .path("/api")
+                .maxAge(0)            // Explicitly set age to 0 to delete it
+                .httpOnly(true)
+                .secure(true)         // Match the settings above so it deletes properly
+                .sameSite("None")
                 .build();
         return cookie;
     }
