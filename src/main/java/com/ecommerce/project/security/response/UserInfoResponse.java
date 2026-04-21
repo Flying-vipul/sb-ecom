@@ -12,17 +12,21 @@ public class UserInfoResponse {
 
     private List<String> roles;
 
-    public UserInfoResponse(Long id,String jwtToken, String username, List<String> roles) {
+    private String profileImage;
+
+    public UserInfoResponse(Long id,String jwtToken, String username, List<String> roles, String profileImage) {
         this.id=id;
         this.jwtToken = jwtToken;
         this.username = username;
         this.roles = roles;
+        this.profileImage = profileImage;
     }
 
-    public UserInfoResponse(Long id, String username, List<String> roles) {
+    public UserInfoResponse(Long id, String username, List<String> roles, String profileImage) {
         this.id=id;
         this.username = username;
         this.roles = roles;
+        this.profileImage = profileImage;
     }
 
     public Long getId() {
@@ -55,5 +59,13 @@ public class UserInfoResponse {
 
     public void setRoles(List<String> roles) {
         this.roles = roles;
+    }
+
+    public String getProfileImage() {
+        return profileImage;
+    }
+
+    public void setProfileImage(String profileImage) {
+        this.profileImage = profileImage;
     }
 }
