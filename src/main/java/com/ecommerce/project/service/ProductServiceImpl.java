@@ -314,6 +314,9 @@ public class ProductServiceImpl implements ProductService{
         productFromDb.setQuantity(product.getQuantity());
         productFromDb.setDiscount(product.getDiscount());
         productFromDb.setPrice(product.getPrice());
+        // Copy variation fields (sizes & colors)
+        productFromDb.setSizes(product.getSizes() != null ? product.getSizes() : new java.util.ArrayList<>());
+        productFromDb.setColors(product.getColors() != null ? product.getColors() : new java.util.ArrayList<>());
         double specialPrice = product.getPrice() - ((product.getDiscount() * 0.01) * product.getPrice());
         productFromDb.setSpecialPrice(specialPrice);
         //save to database
