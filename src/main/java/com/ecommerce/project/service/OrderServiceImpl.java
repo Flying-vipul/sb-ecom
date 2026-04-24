@@ -170,6 +170,9 @@ public class OrderServiceImpl implements OrderService {
             orderItem.setDiscount(cartItem.getDiscount());
             orderItem.setOrderedProductPrice(cartItem.getProductPrice());
             orderItem.setOrder(savedOrder);
+            // Preserve variation selections in order history
+            orderItem.setSelectedSize(cartItem.getSelectedSize());
+            orderItem.setSelectedColor(cartItem.getSelectedColor());
             orderItems.add(orderItem);
 
             // Decrement stock
