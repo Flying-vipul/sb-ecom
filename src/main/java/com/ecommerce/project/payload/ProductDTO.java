@@ -2,6 +2,7 @@ package com.ecommerce.project.payload;
 
 import lombok.*;
 
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -18,6 +19,8 @@ public class ProductDTO {
     private double discount;
     private double specialPrice;
 
-
+    // Product Variations (Clothes category)
+    private List<String> sizes;
+    private List<String> colors;
 
 }
