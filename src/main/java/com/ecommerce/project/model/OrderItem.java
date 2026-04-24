@@ -26,5 +26,8 @@ public class OrderItem {
     private double discount;
     private double orderedProductPrice;
 
+    // Product Variation selections
+    private String selectedSize;
+    private String selectedColor;
 
 }
