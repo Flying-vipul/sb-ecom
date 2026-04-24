@@ -56,4 +56,16 @@ public class Product {
     @Column(name = "is_featured") // Good practice for SQL naming
     private boolean isFeatured = false;
 
+    // ===== PRODUCT VARIATIONS (Sizes & Colors for Clothes category) =====
+
+    @ElementCollection
+    @CollectionTable(name = "product_sizes", joinColumns = @JoinColumn(name = "product_id"))
+    @Column(name = "size")
+    private List<String> sizes = new ArrayList<>();
+
+    @ElementCollection
+    @CollectionTable(name = "product_colors", joinColumns = @JoinColumn(name = "product_id"))
+    @Column(name = "color")
+    private List<String> colors = new ArrayList<>();
+
 }
