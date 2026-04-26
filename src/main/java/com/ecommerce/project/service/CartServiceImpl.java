@@ -283,6 +283,9 @@ public class CartServiceImpl implements CartService {
             cartItem.setQuantity(quantity);
             cartItem.setProductPrice(product.getSpecialPrice());
             cartItem.setDiscount(product.getDiscount());
+            // Copy variation selections (will be null for non-clothing products)
+            cartItem.setSelectedSize(cartItemDTO.getSelectedSize());
+            cartItem.setSelectedColor(cartItemDTO.getSelectedColor());
             cartItemRepository.save(cartItem);
 
         }
