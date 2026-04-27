@@ -10,7 +10,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "carts_items",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"cart_id", "product_id"}))
+        uniqueConstraints = @UniqueConstraint(
+                columnNames = {"cart_id", "product_id", "selected_size", "selected_color"}))
 public class CartItem {
 
     @Id
@@ -28,4 +29,11 @@ public class CartItem {
     private Integer quantity;
     private double discount;
     private double productPrice;
+
+    // Product Variation selections
+    @Column(name = "selected_size")
+    private String selectedSize;
+
+    @Column(name = "selected_color")
+    private String selectedColor;
 }
