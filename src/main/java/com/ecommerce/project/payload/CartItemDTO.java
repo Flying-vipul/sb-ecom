@@ -14,5 +14,8 @@ public class CartItemDTO {
 
     private Integer quantity;
 
+    // Product Variation selections
+    private String selectedSize;
+    private String selectedColor;
 
 }
