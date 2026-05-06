@@ -14,5 +14,9 @@ public class OrderItemDTO {
     private ProductDTO product;
     private Integer quantity;
     private double discount;
-    private double orderProductPrice;
+    private double orderedProductPrice;
+
+    // Product Variation selections
+    private String selectedSize;
+    private String selectedColor;
 }
