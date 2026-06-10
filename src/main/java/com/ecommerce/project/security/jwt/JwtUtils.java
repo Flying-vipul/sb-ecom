@@ -1,6 +1,6 @@
 package com.ecommerce.project.security.jwt;
 
-import com.ecommerce.project.security.services.UserDetailsImpl;
+import com.ecommerce.project.service.UserDetailsImpl;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
@@ -104,6 +104,7 @@ public class JwtUtils {
                 .build().parseSignedClaims(token)
                 .getPayload().getSubject();
     }
+
     //Generating Signing key
     public Key key() {
         return Keys.hmacShaKeyFor(
