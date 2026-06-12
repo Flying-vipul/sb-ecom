@@ -5,13 +5,11 @@ import com.ecommerce.project.payload.OrderDTO;
 import com.ecommerce.project.payload.OrderRequestDTO;
 import com.ecommerce.project.payload.OrderResponse;
 import com.ecommerce.project.payload.OrderStatusUpdateDTO;
-import com.ecommerce.project.security.services.UserDetailsImpl;
 import com.ecommerce.project.service.OrderService;
 import com.ecommerce.project.util.AuthUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
