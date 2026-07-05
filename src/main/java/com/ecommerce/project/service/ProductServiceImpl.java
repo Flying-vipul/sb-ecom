@@ -82,11 +82,14 @@ public class ProductServiceImpl implements ProductService{
         if (isProductNotPresent) {
             Product product = modelMapper.map(productDTO, Product.class);
             product.setImage("default.png");
+            if (product.getImages() == null) {
+                product.setImages(new java.util.ArrayList<>());
+            }
             product.setCategory(category);
             double specialPrice = product.getPrice() - ((product.getDiscount() * 0.01) * product.getPrice());
             product.setSpecialPrice(specialPrice);
             Product savedProduct = productRepository.save(product);
-            return modelMapper.map(savedProduct, ProductDTO.class);
+            return mapProductToDTO(savedProduct);
         }else {
             throw new APIException("Product already exist");
         }
@@ -141,11 +144,7 @@ public class ProductServiceImpl implements ProductService{
 
        List<Product> products= pageProducts.getContent();
        List<ProductDTO> productDTOS = products.stream()
-               .map(product -> {
-                     ProductDTO productDTO =  modelMapper.map(product,ProductDTO.class);
-                     productDTO.setImage(constructImageUrl(product.getImage()));
-                     return productDTO;
-               })
+               .map(this::mapProductToDTO)
                .toList();
 
 //       if (products.isEmpty()) {
@@ -169,6 +168,7 @@ public class ProductServiceImpl implements ProductService{
                 : Sort.by(sortBy).descending();
 
         Pageable pageDetails = PageRequest.of(pageNumber, pageSize, sortByAndOrder);
+
         // -> ADD THIS: Create a simple spec to only get active products
         Specification<Product> spec = (root, query, criteriaBuilder) ->
                 criteriaBuilder.isTrue(root.get("isActive"));
@@ -179,11 +179,7 @@ public class ProductServiceImpl implements ProductService{
         List<Product> products = pageProducts.getContent();
 
         List<ProductDTO> productDTOS = products.stream()
-                .map(product -> {
-                    ProductDTO productDTO = modelMapper.map(product, ProductDTO.class);
-                    productDTO.setImage(constructImageUrl(product.getImage()));
-                    return productDTO;
-                })
+                .map(this::mapProductToDTO)
                 .toList();
 
         ProductResponse productResponse = new ProductResponse();
@@ -210,11 +206,7 @@ public class ProductServiceImpl implements ProductService{
         List<Product> products = pageProducts.getContent();
 
         List<ProductDTO> productDTOS = products.stream()
-                .map(product -> {
-                    ProductDTO productDTO = modelMapper.map(product, ProductDTO.class);
-                    productDTO.setImage(constructImageUrl(product.getImage()));
-                    return productDTO;
-                })
+                .map(this::mapProductToDTO)
                 .toList();
 
         ProductResponse productResponse = new ProductResponse();
@@ -259,7 +251,7 @@ public class ProductServiceImpl implements ProductService{
         }
 
         List<ProductDTO> productDTOS = products.stream()
-                .map(product -> modelMapper.map(product,ProductDTO.class))
+                .map(this::mapProductToDTO)
                 .toList();
 
         ProductResponse productResponse = new ProductResponse();
@@ -285,7 +277,7 @@ public class ProductServiceImpl implements ProductService{
         // product size is 0
         List<Product> products = pageProducts.getContent();
         List<ProductDTO> productDTOS = products.stream()
-                .map(product -> modelMapper.map(product,ProductDTO.class))
+                .map(this::mapProductToDTO)
                 .toList();
 
         if (products.isEmpty()) {
@@ -302,6 +294,13 @@ public class ProductServiceImpl implements ProductService{
     }
 
     @Override
+    public ProductDTO getProductById(Long productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "productId", productId));
+        return mapProductToDTO(product);
+    }
+
+    @Override
     public ProductDTO updateProduct(Long productId, ProductDTO productDTO) {
         //Get the existing product from DB
         Product productFromDb = productRepository.findById(productId)
@@ -314,9 +313,12 @@ public class ProductServiceImpl implements ProductService{
         productFromDb.setQuantity(product.getQuantity());
         productFromDb.setDiscount(product.getDiscount());
         productFromDb.setPrice(product.getPrice());
-        // Copy variation fields (sizes & colors)
+        // Copy variation fields (sizes, colors & gallery images)
         productFromDb.setSizes(product.getSizes() != null ? product.getSizes() : new java.util.ArrayList<>());
         productFromDb.setColors(product.getColors() != null ? product.getColors() : new java.util.ArrayList<>());
+        if (product.getImages() != null && !product.getImages().isEmpty()) {
+            productFromDb.setImages(product.getImages());
+        }
         double specialPrice = product.getPrice() - ((product.getDiscount() * 0.01) * product.getPrice());
         productFromDb.setSpecialPrice(specialPrice);
         //save to database
@@ -327,7 +329,7 @@ public class ProductServiceImpl implements ProductService{
         List<CartDTO> cartDTOs =carts.stream().map(cart ->{
             CartDTO cartDTO = modelMapper.map(cart,CartDTO.class);
             List<ProductDTO> products =cart.getCartItems().stream()
-                    .map(p -> modelMapper.map(p.getProduct(),ProductDTO.class))
+                    .map(p -> mapProductToDTO(p.getProduct()))
                     .toList();
             cartDTO.setProducts(products);
             return cartDTO;
@@ -335,7 +337,7 @@ public class ProductServiceImpl implements ProductService{
 
         cartDTOs.forEach(cart -> cartService.updateProductInCarts(cart.getCartId(), productId));
 
-        return modelMapper.map(savedProduct,ProductDTO.class);
+        return mapProductToDTO(savedProduct);
 
     }
 
@@ -427,13 +429,52 @@ public class ProductServiceImpl implements ProductService{
 
         //Updating the new file name to the product
         productFromDB.setImage(fileName);
+        if (productFromDB.getImages() == null) {
+            productFromDB.setImages(new java.util.ArrayList<>());
+        }
+        if (!productFromDB.getImages().contains(fileName) && productFromDB.getImages().size() < 5) {
+            productFromDB.getImages().add(0, fileName);
+        }
 
         //Save Updated product
         Product updatedProduct = productRepository.saveAndFlush(productFromDB);
 
+        return mapProductToDTO(updatedProduct);
+    }
 
-        //return DTO after mapping product to DTO
-        return modelMapper.map(updatedProduct,ProductDTO.class);
+    @Override
+    public ProductDTO updateProductImages(Long productId, List<MultipartFile> images) throws IOException {
+        Product productFromDB = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "productId", productId));
+
+        if (productFromDB.getImages() == null) {
+            productFromDB.setImages(new java.util.ArrayList<>());
+        }
+
+        int currentCount = productFromDB.getImages().size();
+        int newCount = (images != null) ? images.size() : 0;
+        int totalCount = currentCount + newCount;
+
+        if (totalCount < 2) {
+            throw new APIException("A product must have at least 2 images. Currently has " + currentCount + ", uploading " + newCount + " (total: " + totalCount + "). Please upload more images.");
+        }
+        if (totalCount > 5) {
+            throw new APIException("A product can have a maximum of 5 images. Currently has " + currentCount + ", uploading " + newCount + " (would be total: " + totalCount + "). You can upload at most " + (5 - currentCount) + " more image(s).");
+        }
+
+        List<String> uploadedUrls = fileService.uploadMultipleImages(path, images);
+        for (String url : uploadedUrls) {
+            if (!productFromDB.getImages().contains(url)) {
+                productFromDB.getImages().add(url);
+            }
+        }
+
+        if (("default.png".equals(productFromDB.getImage()) || productFromDB.getImage() == null) && !productFromDB.getImages().isEmpty()) {
+            productFromDB.setImage(productFromDB.getImages().get(0));
+        }
+
+        Product updatedProduct = productRepository.saveAndFlush(productFromDB);
+        return mapProductToDTO(updatedProduct);
     }
 
     @Override
@@ -442,18 +483,20 @@ public class ProductServiceImpl implements ProductService{
         List<Product> featuredProducts = productRepository.findByIsFeaturedTrue();
 
         // 2. Map to DTOs (and fix Image URLs!)
-        List<ProductDTO> productDTOS = featuredProducts.stream()
-                .map(product -> {
-                    ProductDTO dto = modelMapper.map(product, ProductDTO.class);
-                    // Crucial: Use your existing helper to fix the URL
-                    dto.setImage(constructImageUrl(product.getImage()));
-                    return dto;
-                })
+        return featuredProducts.stream()
+                .map(this::mapProductToDTO)
                 .toList();
-
-        return productDTOS;
     }
 
-
+    private ProductDTO mapProductToDTO(Product product) {
+        ProductDTO dto = modelMapper.map(product, ProductDTO.class);
+        dto.setImage(constructImageUrl(product.getImage()));
+        if (product.getImages() != null) {
+            dto.setImages(product.getImages().stream().map(this::constructImageUrl).toList());
+        } else {
+            dto.setImages(new java.util.ArrayList<>());
+        }
+        return dto;
+    }
 
 }
