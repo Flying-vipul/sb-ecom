@@ -192,6 +192,9 @@ public class OrderServiceImpl implements OrderService {
                 orderDTO.getOrderItems().add(modelMapper.map(item, OrderItemDTO.class)));
         orderDTO.setAddressId(addressId);
 
+        // 9. Send order confirmation email (async — does not block checkout response)
+        emailService.sendOrderConfirmationEmail(emailId, savedOrder.getOrderId(), savedOrder.getTotalAmount(), orderItems);
+
         return orderDTO;
     }
 

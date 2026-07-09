@@ -101,4 +101,70 @@ public class AuthService {
             throw new RuntimeException("Invalid OTP. You have " + (3 - currentAttempts) + " attempt(s) left.");
         }
     }
-}
+
+    // ==========================================
+    // PASSWORD RESET OTP GENERATION
+    // ==========================================
+    @Transactional
+    public String generatePasswordResetOtp(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("No account found with this email address."));
+
+        // Lockout check
+        if (user.getAccountLockedUntil() != null && LocalDateTime.now().isBefore(user.getAccountLockedUntil())) {
+            long minutesLeft = Duration.between(LocalDateTime.now(), user.getAccountLockedUntil()).toMinutes();
+            throw new RuntimeException("Account is temporarily locked. Try again in " + minutesLeft + " minutes.");
+        }
+
+        int otpNum = 100000 + secureRandom.nextInt(900000);
+        String generatedOtp = String.valueOf(otpNum);
+
+        user.setOtp(generatedOtp);
+        user.setOtpExpiry(LocalDateTime.now().plusMinutes(5));
+        user.setOtpAttempts(0);
+        user.setAccountLockedUntil(null);
+        userRepository.save(user);
+
+        return generatedOtp;
+    }
+
+    // ==========================================
+    // PASSWORD RESET — Verify OTP + Save new pw
+    // ==========================================
+    @Transactional
+    public void resetPassword(String email, String enteredOtp, String newPassword,
+                              org.springframework.security.crypto.password.PasswordEncoder encoder) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("No account found with this email address."));
+
+        if (user.getAccountLockedUntil() != null && LocalDateTime.now().isBefore(user.getAccountLockedUntil())) {
+            throw new RuntimeException("Account is temporarily locked. Please try again later.");
+        }
+
+        if (user.getOtp() == null || user.getOtpExpiry() == null || LocalDateTime.now().isAfter(user.getOtpExpiry())) {
+            throw new RuntimeException("Your reset code has expired. Please request a new one.");
+        }
+
+        if (user.getOtp().equals(enteredOtp)) {
+            // OTP matched — save new password
+            user.setPassword(encoder.encode(newPassword));
+            user.setOtp(null);
+            user.setOtpExpiry(null);
+            user.setOtpAttempts(0);
+            user.setAccountLockedUntil(null);
+            userRepository.save(user);
+        } else {
+            int currentAttempts = user.getOtpAttempts() + 1;
+            user.setOtpAttempts(currentAttempts);
+            if (currentAttempts >= 3) {
+                user.setAccountLockedUntil(LocalDateTime.now().plusMinutes(15));
+                user.setOtp(null);
+                user.setOtpExpiry(null);
+                userRepository.save(user);
+                throw new RuntimeException("Maximum attempts reached. Account locked for 15 minutes.");
+            }
+            userRepository.save(user);
+            throw new RuntimeException("Invalid reset code. You have " + (3 - currentAttempts) + " attempt(s) left.");
+        }
+    }
+}

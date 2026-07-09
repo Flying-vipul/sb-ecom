@@ -18,11 +18,14 @@ public class WebConfig implements WebMvcConfigurer {
                         "http://localhost:5173",
                         "http://localhost:3000",
                         "https://zappitindia.netlify.app",
-                        frontEndURL   // keeps flexibility for future
+                        "https://zappit.online",
+                        "https://www.zappit.online",
+                        frontEndURL
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true);
+
     }
 }
 

@@ -67,4 +67,16 @@ public class FileServiceImple implements FileService {
         // We return this URL so your ProductController can save it to the database!
         return uploadResult.get("secure_url").toString();
     }
+
+    @Override
+    public java.util.List<String> uploadMultipleImages(String path, java.util.List<MultipartFile> files) throws IOException {
+        java.util.List<String> urls = new java.util.ArrayList<>();
+        for (MultipartFile file : files) {
+            if (file != null && !file.isEmpty()) {
+                String url = uploadImage(path, file);
+                urls.add(url);
+            }
+        }
+        return urls;
+    }
 }

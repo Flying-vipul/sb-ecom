@@ -4,6 +4,10 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### Custom Secrets ###
+.env
+.env.*
+
 ### STS ###
 .apt_generated
 .classpath

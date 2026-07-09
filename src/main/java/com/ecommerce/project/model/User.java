@@ -41,10 +41,14 @@ public class User {
     @Column(name = "email")
     private String email;
 
-    @NotBlank
+    // Nullable — OAuth2 users authenticate via Google, they have no local password
     @Size(max = 120)
     @Column(name = "password")
     private String password;
+
+    // "local" for email/password users, "google" for OAuth2 users
+    @Column(name = "provider", columnDefinition = "VARCHAR(50) DEFAULT 'local'")
+    private String provider = "local";
 
     @Column(name = "profile_image")
     private String profileImage;

@@ -107,9 +107,17 @@ public class JwtUtils {
 
     //Generating Signing key
     public Key key() {
-        return Keys.hmacShaKeyFor(
-                Decoders.BASE64.decode(jwtSecret )
-        );
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(jwtSecret);
+        } catch (Exception e1) {
+            try {
+                keyBytes = Decoders.BASE64URL.decode(jwtSecret);
+            } catch (Exception e2) {
+                keyBytes = jwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+        }
+        return Keys.hmacShaKeyFor(keyBytes);
     }
     //Validate JWT Token
     public boolean validateJwtToken(String authToken) {

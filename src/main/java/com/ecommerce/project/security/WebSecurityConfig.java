@@ -41,6 +41,9 @@ public class WebSecurityConfig {
     @Autowired
     private AuthEntryPointJwt unauthorizedHandler;
 
+    @Autowired
+    private OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+
     @Value("${app.admin.email}")
     private String adminEmail;
 
@@ -82,8 +85,8 @@ public class WebSecurityConfig {
                 .exceptionHandling(exception ->exception.authenticationEntryPoint(unauthorizedHandler))
                 .sessionManagement(
                         session ->
-                                                                        session.sessionCreationPolicy(
-                                                                                  SessionCreationPolicy.STATELESS))
+                                session.sessionCreationPolicy(
+                                        SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth ->
                         auth.requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/v3/api-docs/**").permitAll()
@@ -94,6 +97,11 @@ public class WebSecurityConfig {
                                 .requestMatchers("/api/test/**").permitAll()
                                 .requestMatchers("/images/**").permitAll()
                                 .requestMatchers("/error").permitAll()
+                                // Health check — must be public so cron-job.org can ping without JWT
+                                .requestMatchers("/api/health").permitAll()
+                                // OAuth2 endpoints must be public
+                                .requestMatchers("/oauth2/**").permitAll()
+                                .requestMatchers("/login/oauth2/**").permitAll()
                         .anyRequest().authenticated());
 
         http.authenticationProvider(authenticationProvider());
@@ -101,6 +109,11 @@ public class WebSecurityConfig {
                 (Class<? extends Filter>) UsernamePasswordAuthenticationFilter.class);
         http.headers(headers -> headers.frameOptions(
                 frameOptions -> frameOptions.sameOrigin()));
+
+        // Enable Google OAuth2 login
+        http.oauth2Login(oauth2 -> oauth2
+                .successHandler(oAuth2AuthenticationSuccessHandler)
+        );
 
         return http.build();
     }

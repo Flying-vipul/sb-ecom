@@ -68,4 +68,10 @@ public class Product {
     @Column(name = "color")
     private List<String> colors = new ArrayList<>();
 
+    // ===== PRODUCT GALLERY (Multi-Image Support: Min 2, Max 5) =====
+    @ElementCollection
+    @CollectionTable(name = "product_images", joinColumns = @JoinColumn(name = "product_id"))
+    @Column(name = "image_url")
+    private List<String> images = new ArrayList<>();
+
 }

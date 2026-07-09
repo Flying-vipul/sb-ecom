@@ -11,23 +11,22 @@ import org.springframework.stereotype.Service;
 
 
 @Service
-public class UserDetailsServiceImpl  implements UserDetailsService {
+public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Autowired
     UserRepository userRepository;
 
     @Override
     @Transactional
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByUserName(username)
+    public UserDetails loadUserByUsername(String usernameOrEmail) throws UsernameNotFoundException {
+        // Try to find by username first, then fall back to email.
+        // This allows users to log in with either their username OR their email address.
+        User user = userRepository.findByUserName(usernameOrEmail)
+                .or(() -> userRepository.findByEmail(usernameOrEmail))
                 .orElseThrow(() ->
-                        new UsernameNotFoundException("User Not with Username" + username));
-
-
+                        new UsernameNotFoundException("No account found for: " + usernameOrEmail));
 
         return UserDetailsImpl.build(user);
-
-
-
     }
 }
+

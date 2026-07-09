@@ -61,6 +61,12 @@ public class ProductController {
        return new ResponseEntity<>(productResponse, HttpStatus.FOUND);
     }
 
+    @GetMapping("/public/products/{productId}")
+    public ResponseEntity<ProductDTO> getProductById(@PathVariable Long productId) {
+        ProductDTO productDTO = productService.getProductById(productId);
+        return new ResponseEntity<>(productDTO, HttpStatus.OK);
+    }
+
     @PutMapping("/admin/products/{productId}")
     public ResponseEntity<ProductDTO> updateProduct(@Valid @RequestBody ProductDTO productDTO,
                                                     @PathVariable Long productId ) {
@@ -129,6 +135,20 @@ public class ProductController {
     public ResponseEntity<ProductDTO> updateProductImageSeller(@PathVariable Long productId,
                                                                @RequestParam("image")MultipartFile image) throws IOException {
         ProductDTO updatedProduct = productService.updateProductImage(productId, image);
+        return new ResponseEntity<>(updatedProduct, HttpStatus.OK);
+    }
+
+    @PutMapping("/product/{productId}/images")
+    public ResponseEntity<ProductDTO> updateProductImages(@PathVariable Long productId,
+                                                          @RequestParam("images") List<MultipartFile> images) throws IOException {
+        ProductDTO updatedProduct = productService.updateProductImages(productId, images);
+        return new ResponseEntity<>(updatedProduct, HttpStatus.OK);
+    }
+
+    @PutMapping("/seller/products/{productId}/images")
+    public ResponseEntity<ProductDTO> updateProductImagesSeller(@PathVariable Long productId,
+                                                                @RequestParam("images") List<MultipartFile> images) throws IOException {
+        ProductDTO updatedProduct = productService.updateProductImages(productId, images);
         return new ResponseEntity<>(updatedProduct, HttpStatus.OK);
     }
 }

@@ -23,4 +23,7 @@ public class ProductDTO {
     private List<String> sizes;
     private List<String> colors;
 
+    // Product Gallery
+    private List<String> images;
+
 }

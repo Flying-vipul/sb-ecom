@@ -8,4 +8,6 @@ public interface FileService {
 
 
     String uploadImage(String path, MultipartFile file) throws IOException;
+
+    java.util.List<String> uploadMultipleImages(String path, java.util.List<MultipartFile> files) throws IOException;
 }
