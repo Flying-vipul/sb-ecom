@@ -89,15 +89,21 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
                 return userRepository.save(newUser);
             });
 
-            // If existing local user signs in with Google, link their account
+            // ── Scenario 3: Existing email+password user signs in with Google ──
+            // DO NOT change their provider to "google" — they still have their own password
+            // and should be able to use EITHER Google login OR their original password.
+            // We only update their profile picture (if they don't have one) and ensure verified=true.
             if (!"google".equals(user.getProvider())) {
-                user.setProvider("google");
                 if (user.getProfileImage() == null && picture != null) {
                     user.setProfileImage(picture);
                 }
                 user.setVerified(true);
+                // NOTE: provider is intentionally NOT changed here.
+                // Keeping provider as null/local means UserDetailsServiceImpl
+                // will still allow their password login.
                 userRepository.save(user);
-                logger.info("Linked existing user {} to Google OAuth2", user.getUserName());
+                logger.info("Google login accepted for existing local user {} — provider unchanged, password login preserved",
+                        user.getUserName());
             }
 
             // --- Generate JWT ---
