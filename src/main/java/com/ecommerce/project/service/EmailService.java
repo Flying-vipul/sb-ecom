@@ -35,6 +35,10 @@ public class EmailService {
     @Value("${spring.mail.from:zappit.india@gmail.com}")
     private String senderEmail;
 
+    // The inbox where contact form inquiries should land (owner's Gmail)
+    @Value("${app.owner.email:zappit.india@gmail.com}")
+    private String ownerEmail;
+
     // ==========================================
     // SHARED HELPER: Build and send via Brevo API
     // ==========================================
@@ -257,7 +261,8 @@ public class EmailService {
                 + "<p style='color:#94a3b8;font-size:12px;margin:0'>Reply to: " + request.getEmail() + " | Zappit India</p>"
                 + "</td></tr></table></td></tr></table></body></html>";
 
-            sendHtmlEmail(senderEmail, subject, htmlBody);
+            // Send to the owner's Gmail inbox (not senderEmail which is the Brevo from-address)
+            sendHtmlEmail(ownerEmail, subject, htmlBody);
             logger.info("Contact inquiry email sent from: {}", request.getEmail());
         } catch (Exception e) {
             logger.error("Failed to send contact inquiry email from {}: {}", request.getEmail(), e.getMessage(), e);
