@@ -26,6 +26,16 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .orElseThrow(() ->
                         new UsernameNotFoundException("No account found for: " + usernameOrEmail));
 
+        // Block Google-first users from using the password login form.
+        // They were created via OAuth and have no real password ("OAUTH2_NO_PASSWORD" placeholder).
+        // Users who signed up with email+password first and LATER linked Google keep their
+        // original provider (null / "local"), so they are NOT affected by this check —
+        // they can still log in with their own password AND with Google.
+        if ("google".equals(user.getProvider())) {
+            throw new UsernameNotFoundException(
+                    "This account was created with Google Sign-In. Please use 'Sign in with Google' to access your account.");
+        }
+
         return UserDetailsImpl.build(user);
     }
 }
