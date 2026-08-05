@@ -102,9 +102,7 @@ public class AuthService {
         }
     }
 
-    // ==========================================
-    // PASSWORD RESET OTP GENERATION
-    // ==========================================
+
     @Transactional
     public String generatePasswordResetOtp(String email) {
         User user = userRepository.findByEmail(email)
@@ -128,9 +126,7 @@ public class AuthService {
         return generatedOtp;
     }
 
-    // ==========================================
-    // PASSWORD RESET — Verify OTP + Save new pw
-    // ==========================================
+
     @Transactional
     public void resetPassword(String email, String enteredOtp, String newPassword,
                               org.springframework.security.crypto.password.PasswordEncoder encoder) {
@@ -167,4 +163,4 @@ public class AuthService {
             throw new RuntimeException("Invalid reset code. You have " + (3 - currentAttempts) + " attempt(s) left.");
         }
     }
-}
+}
