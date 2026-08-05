@@ -1,23 +1,19 @@
 package com.ecommerce.project.controller;
 
 import com.ecommerce.project.model.AppRole;
+import com.ecommerce.project.model.RefreshToken;
 import com.ecommerce.project.model.Role;
 import com.ecommerce.project.model.User;
 import com.ecommerce.project.payload.OtpVerificationRequest;
 import com.ecommerce.project.repositories.RoleRepository;
 import com.ecommerce.project.repositories.UserRepository;
 import com.ecommerce.project.security.jwt.JwtUtils;
-
 import com.ecommerce.project.security.request.LoginRequest;
 import com.ecommerce.project.security.request.SignupRequest;
 import com.ecommerce.project.security.response.MessageResponse;
 import com.ecommerce.project.security.response.UserInfoResponse;
-import com.ecommerce.project.service.UserDetailsImpl;
-import com.ecommerce.project.service.AuthService;
-import com.ecommerce.project.service.EmailService;
-import com.ecommerce.project.service.FileService;
+import com.ecommerce.project.service.*;
 import jakarta.validation.Valid;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -30,6 +26,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
 
@@ -52,7 +49,6 @@ public class AuthController  {
     @Autowired
     RoleRepository roleRepository;
 
-    // INJECT THE NEW ZAPPIT ENGINES HERE
     @Autowired
     AuthService authService;
 
@@ -62,8 +58,37 @@ public class AuthController  {
     @Autowired
     FileService fileService;
 
+    @Autowired
+    RefreshTokenService refreshTokenService;
+
+    @Autowired
+    TokenBlacklistService tokenBlacklistService;
+
+    @Autowired
+    AuthRateLimiterService authRateLimiterService;
+
     @PostMapping("/signin")
-    public ResponseEntity<?> authenticationUser(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> authenticationUser(
+            @RequestBody LoginRequest loginRequest,
+            jakarta.servlet.http.HttpServletRequest httpRequest) {
+
+        // ── RATE LIMIT CHECK ────────────────────────────────────────────────
+        // Extract real client IP (handles reverse proxies like Render/Nginx)
+        String clientIp = httpRequest.getHeader("X-Forwarded-For");
+        if (clientIp == null || clientIp.isBlank()) {
+            clientIp = httpRequest.getRemoteAddr();
+        } else {
+            clientIp = clientIp.split(",")[0].trim(); // take first IP if chain
+        }
+
+        if (authRateLimiterService.isBlocked(clientIp)) {
+            long waitSecs = authRateLimiterService.getBlockRemainingSeconds(clientIp);
+            Map<String, Object> map = new HashMap<>();
+            map.put("message", "Too many failed attempts. Try again in " + (waitSecs / 60) + " minutes.");
+            map.put("Status", false);
+            return new ResponseEntity<>(map, HttpStatus.TOO_MANY_REQUESTS); // 429
+        }
+        // ────────────────────────────────────────────────────────────────────
 
         // ZAPPIT SECURITY BLOCK: Check if user verified their email before letting them log in
         User user = userRepository.findByUserName(loginRequest.getUsername()).orElse(null);
@@ -79,18 +104,23 @@ public class AuthController  {
         }
 
         Authentication authentication;
-        try{
+        try {
             authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             loginRequest.getUsername(),
                             loginRequest.getPassword()
                     )
             );
-        }catch (AuthenticationException exception) {
+            //  Login succeeded — clear failed attempt counter for this IP
+            authRateLimiterService.clearAttempts(clientIp);
+
+        } catch (AuthenticationException exception) {
+            //  Login failed — record failed attempt for this IP
+            authRateLimiterService.recordFailedAttempt(clientIp);
+
             Map<String, Object> map = new HashMap<>();
             map.put("message", "Bad Credentials");
-            map.put("Status" ,false);
-
+            map.put("Status", false);
             return new ResponseEntity<Object>(map, HttpStatus.UNAUTHORIZED);
         }
 
@@ -98,17 +128,31 @@ public class AuthController  {
 
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
+        // Generate short-lived access token (15 min) as HttpOnly cookie
         ResponseCookie jwtCookie = jwtUtils.generateJwtCookie(userDetails);
 
-        List<String> roles =userDetails.getAuthorities().stream()
+        // Generate long-lived refresh token (7 days) — stored in DB + HttpOnly cookie
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getUsername());
+        ResponseCookie refreshCookie = jwtUtils.generateRefreshTokenCookie(refreshToken.getToken());
+
+        List<String> roles = userDetails.getAuthorities().stream()
                 .map(item -> item.getAuthority())
                 .toList();
-                
-        String profileImage = user != null ? user.getProfileImage() : null;
-        UserInfoResponse response = new UserInfoResponse(userDetails.getId(),jwtCookie.getValue(), userDetails.getUsername(),roles, profileImage);
 
-        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE,
-                jwtCookie.toString())
+        String profileImage = user != null ? user.getProfileImage() : null;
+        UserInfoResponse response = new UserInfoResponse(
+                userDetails.getId(),
+                jwtCookie.getValue(),
+                userDetails.getUsername(),
+                roles,
+                profileImage
+        );
+
+        // Access token + Refresh token BOTH in HttpOnly cookies (not localStorage)
+        // Body only contains user info for Redux store
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
                 .body(response);
     }
 
@@ -273,11 +317,94 @@ public class AuthController  {
     }
 
     @PostMapping("/signout")
-    public ResponseEntity<?> signOutUser() {
-        ResponseCookie cookie = jwtUtils.getCleanJwtCookie();
-        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE,
-                        cookie.toString())
+    public ResponseEntity<?> signOutUser(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+        // 1. Blacklist the current access token in Redis so it's immediately invalid
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String jwt = authHeader.substring(7);
+            try {
+                long remainingMs = jwtUtils.getExpirationFromJwt(jwt).getTime() - System.currentTimeMillis();
+                if (remainingMs > 0) {
+                    tokenBlacklistService.blacklistToken(jwt, remainingMs);
+                }
+            } catch (Exception e) {
+                // Token may already be expired — safe to ignore
+            }
+        }
+
+        // 2. Delete refresh token from DB for this user
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            try {
+                refreshTokenService.deleteByUsername(authentication.getName());
+            } catch (Exception e) {
+                // User may not have a refresh token — safe to ignore
+            }
+        }
+
+        // 3. Clear BOTH cookies (access token + refresh token)
+        ResponseCookie accessCookie  = jwtUtils.getCleanJwtCookie();
+        ResponseCookie refreshCookie = jwtUtils.getCleanRefreshTokenCookie();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, accessCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
                 .body(new MessageResponse("You've been signed out!"));
+    }
+
+    /**
+     * Refresh Token Endpoint — WITH TOKEN ROTATION
+     * React calls this when the access token expires (every 15 min).
+     *
+     * ROTATION: The old refresh token is deleted and a NEW one is issued.
+     * This means a stolen refresh token can only be used ONCE — after that
+     * it's gone from the DB and permanently invalid.
+     */
+    @PostMapping("/refresh-token")
+    public ResponseEntity<?> refreshToken(
+            @CookieValue(name = "ecom-refresh-token", required = false) String cookieRefreshToken,
+            @RequestBody(required = false) Map<String, String> body) {
+
+        // Accept refresh token from either HttpOnly cookie OR request body (fallback)
+        String requestRefreshToken = cookieRefreshToken;
+        if (requestRefreshToken == null && body != null) {
+            requestRefreshToken = body.get("refreshToken");
+        }
+
+        if (requestRefreshToken == null || requestRefreshToken.trim().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new MessageResponse("Error: No refresh token provided. Please log in again."));
+        }
+
+        final String finalToken = requestRefreshToken;
+
+        return refreshTokenService.findByToken(finalToken)
+                .map(refreshTokenService::verifyExpiry)     // check not expired
+                .map(oldToken -> {
+                    User user = oldToken.getUser();
+
+                    // ── TOKEN ROTATION ──────────────────────────────────────
+                    // Delete the old refresh token — it can never be used again
+                    // Create a  refresh token for this user
+                    RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user.getUserName());
+
+                    // Issue a new access token WITH embedded claims (zero DB on next requests)
+                    UserDetailsImpl userDetails = org.springframework.security.core.context.SecurityContextHolder
+                            .getContext().getAuthentication() != null
+                            ? (UserDetailsImpl) org.springframework.security.core.context.SecurityContextHolder
+                                    .getContext().getAuthentication().getPrincipal()
+                            : null;
+
+                    String newAccessToken = jwtUtils.generateTokenFromUsername(user.getUserName());
+                    ResponseCookie newRefreshCookie = jwtUtils.generateRefreshTokenCookie(newRefreshToken.getToken());
+
+                    Map<String, String> responseMap = new HashMap<>();
+                    responseMap.put("accessToken", newAccessToken);
+
+                    return ResponseEntity.ok()
+                            .header(HttpHeaders.SET_COOKIE, newRefreshCookie.toString())
+                            .body((Object) responseMap);
+                })
+                .orElse(ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(new MessageResponse("Error: Refresh token not found. Please log in again.")));
     }
 
     @PutMapping("/profile/image")
