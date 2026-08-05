@@ -1,6 +1,7 @@
 package com.ecommerce.project.security.jwt;
 
 import com.ecommerce.project.service.UserDetailsImpl;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
@@ -19,6 +20,7 @@ import org.springframework.web.util.WebUtils;
 import javax.crypto.SecretKey;
 import java.security.Key;
 import java.util.Date;
+import java.util.List;
 
 @Component
 public class JwtUtils {
@@ -27,22 +29,15 @@ public class JwtUtils {
     @Value("${spring.app.jwtSecret}")
     private String jwtSecret;
 
-    @Value("${spring.app.jwtExpirationMs}")
+    @Value("${spring.app.jwtExpirationMs:86400000}")
     private int jwtExpirationMs;
 
-    @Value("${spring.ecom.app.jwtCookieName}")
+    @Value("${spring.ecom.app.jwtCookieName:ecom-jwt}")
     private String jwtCookie;
 
-    //Getting JWT From Header
-//    public String getJwtFromHeader(HttpServletRequest request) {
-//        String bearerToken = request.getHeader("Authorization");
-//        logger.debug("Authorization Header: {} ",bearerToken
-//        );
-//        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
-//            return bearerToken.substring(7);
-//        }
-//        return null;
-//    }
+    // ==========================================
+    // TOKEN EXTRACTION FROM REQUEST
+    // ==========================================
 
     public String getJwtFromHeader(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
@@ -57,55 +52,147 @@ public class JwtUtils {
         Cookie cookie = WebUtils.getCookie(request, jwtCookie);
         if (cookie != null) {
             return cookie.getValue();
-        }else {
-            return null;
         }
+        return null;
     }
 
+    // ==========================================
+    // COOKIE HELPERS
+    // ==========================================
 
-    public ResponseCookie generateJwtCookie(UserDetailsImpl userPrincipal){
-        String jwt = generateTokenFromUsername(userPrincipal.getUsername());
-        ResponseCookie cookie = ResponseCookie.from(jwtCookie,jwt)
+    public ResponseCookie generateJwtCookie(UserDetailsImpl userPrincipal) {
+        String jwt = generateToken(userPrincipal);
+        String cookieName = jwtCookie != null ? jwtCookie : "ecom-cookie";
+        return ResponseCookie.from(cookieName, jwt)
                 .path("/api")
                 .maxAge(24 * 60 * 60)
-                .httpOnly(true)       // Changed to true to prevent JavaScript stealing the cookie
-                .secure(true)         // MUST be true for HTTPS / Cross-site
-                .sameSite("None")     // MUST be "None" to allow Netlify to read Render's cookie
-                .build();
-        return cookie;
-    }
-
-    public ResponseCookie getCleanJwtCookie(){
-        ResponseCookie cookie = ResponseCookie.from(jwtCookie,null)
-                .path("/api")
-                .maxAge(0)            // Explicitly set age to 0 to delete it
                 .httpOnly(true)
-                .secure(true)         // Match the settings above so it deletes properly
+                .secure(true)
                 .sameSite("None")
                 .build();
-        return cookie;
     }
 
-    //Generating Token from Username
+    public ResponseCookie getCleanJwtCookie() {
+        String cookieName = jwtCookie != null ? jwtCookie : "ecom-cookie";
+        return ResponseCookie.from(cookieName, "")
+                .path("/api")
+                .maxAge(0)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("None")
+                .build();
+    }
+
+    public ResponseCookie generateRefreshTokenCookie(String refreshToken) {
+        return ResponseCookie.from("ecom-refresh-token", refreshToken)
+                .path("/api/auth/refresh-token")
+                .maxAge(7 * 24 * 60 * 60)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("None")
+                .build();
+    }
+
+    public ResponseCookie getCleanRefreshTokenCookie() {
+        return ResponseCookie.from("ecom-refresh-token", "")
+                .path("/api/auth/refresh-token")
+                .maxAge(0)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("None")
+                .build();
+    }
+
+    // ==========================================
+    // TOKEN GENERATION
+    // ==========================================
+
+    public String generateToken(UserDetailsImpl userPrincipal) {
+        List<String> roles = userPrincipal.getAuthorities()
+                .stream()
+                .map(authority -> authority.getAuthority())
+                .toList();
+
+        var builder = Jwts.builder()
+                .subject(userPrincipal.getUsername())
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs));
+
+        if (userPrincipal.getId() != null) {
+            builder.claim("id", userPrincipal.getId());
+        }
+        if (userPrincipal.getEmail() != null) {
+            builder.claim("email", userPrincipal.getEmail());
+        }
+        if (roles != null && !roles.isEmpty()) {
+            builder.claim("roles", roles);
+        }
+
+        return builder.signWith(key()).compact();
+    }
+
     public String generateTokenFromUsername(String username) {
-//        String username = userDetails.getUsername();
         return Jwts.builder()
                 .subject(username)
                 .issuedAt(new Date())
-                .expiration(new Date((new Date().getTime() + jwtExpirationMs)))
+                .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
                 .signWith(key())
                 .compact();
     }
 
-    //Generating Username from JWT Token
+    // ==========================================
+    // CLAIM EXTRACTORS
+    // ==========================================
+
     public String getUsernameByJwtTokens(String token) {
-        return Jwts.parser()
-                .verifyWith((SecretKey) key())
-                .build().parseSignedClaims(token)
-                .getPayload().getSubject();
+        return parseClaims(token).getSubject();
     }
 
-    //Generating Signing key
+    public Long getIdFromJwt(String token) {
+        Object id = parseClaims(token).get("id");
+        if (id == null) return null;
+        if (id instanceof Number) {
+            return ((Number) id).longValue();
+        }
+        return Long.parseLong(id.toString());
+    }
+
+    public String getEmailFromJwt(String token) {
+        return parseClaims(token).get("email", String.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<String> getRolesFromJwt(String token) {
+        return (List<String>) parseClaims(token).get("roles");
+    }
+
+    public Date getExpirationFromJwt(String token) {
+        return parseClaims(token).getExpiration();
+    }
+
+    // ==========================================
+    // VALIDATION & HELPERS
+    // ==========================================
+
+    public boolean validateJwtToken(String authToken) {
+        try {
+            Jwts.parser()
+                    .verifyWith((SecretKey) key())
+                    .build()
+                    .parseSignedClaims(authToken);
+            return true;
+        } catch (MalformedJwtException e) {
+            logger.error("Invalid JWT token: {}", e.getMessage());
+        } catch (ExpiredJwtException e) {
+            logger.error("JWT Token expired: {}", e.getMessage());
+        } catch (UnsupportedJwtException e) {
+            logger.error("JWT Token is unsupported: {}", e.getMessage());
+        } catch (IllegalArgumentException e) {
+            logger.error("JWT claims string is empty: {}", e.getMessage());
+        }
+        return false;
+    }
+
     public Key key() {
         byte[] keyBytes;
         try {
@@ -117,27 +204,17 @@ public class JwtUtils {
                 keyBytes = jwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             }
         }
+        if (keyBytes.length < 32) {
+            throw new IllegalArgumentException("JWT Secret key must be at least 32 characters or 256 bits long!");
+        }
         return Keys.hmacShaKeyFor(keyBytes);
     }
-    //Validate JWT Token
-    public boolean validateJwtToken(String authToken) {
-        try {
-            System.out.println("Validate");
-            Jwts.parser()
-            .verifyWith((SecretKey) key())
-            .build()
-            .parseSignedClaims(authToken);
-             return true;
-        }catch (MalformedJwtException e) {
-            logger.error("Invalid JWT token: {}", e.getMessage());
-        }catch (ExpiredJwtException e) {
-            logger.error("Jwt Token get expired:{}", e.getMessage());
-        }catch (UnsupportedJwtException e) {
-            logger.error("Jwt Token is unsupported:{}",e.getMessage());
-        }catch (IllegalArgumentException e) {
-            logger.error("JWT claims string is empty:{}",e.getMessage());
-        }
-        return false;
 
+    private Claims parseClaims(String token) {
+        return Jwts.parser()
+                .verifyWith((SecretKey) key())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }
