@@ -41,7 +41,6 @@ public class UserDetailsImpl implements UserDetails {
               user.getEmail(),
               user.getPassword(),
               authorities
-
         );
     }
 
