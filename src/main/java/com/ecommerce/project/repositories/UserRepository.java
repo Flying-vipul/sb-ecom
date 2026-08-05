@@ -15,6 +15,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Boolean existsByEmail(String email);
 
-    // ADD THIS EXACT LINE FOR THE OTP SYSTEM TO WORK:
     Optional<User> findByEmail(String email);
 }
