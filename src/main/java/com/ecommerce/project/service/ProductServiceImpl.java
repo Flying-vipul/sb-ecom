@@ -11,6 +11,9 @@ import com.ecommerce.project.repositories.CartRepository;
 import com.ecommerce.project.repositories.CategoryRepository;
 import com.ecommerce.project.repositories.ProductRepository;
 import com.ecommerce.project.util.AuthUtil;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.transaction.annotation.Transactional;
 import org.modelmapper.ModelMapper;
@@ -64,6 +67,10 @@ public class ProductServiceImpl implements ProductService{
 
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "products", allEntries = true),
+            @CacheEvict(value = "featuredProducts", allEntries = true)
+    })
     public ProductDTO addProduct(Long categoryId, ProductDTO productDTO) {
         //Check if product is present or not
         Category category  = categoryRepository.findById(categoryId)
@@ -97,6 +104,8 @@ public class ProductServiceImpl implements ProductService{
     }
 
     @Override
+    @Cacheable(value = "products",
+            key = "#pageNumber + '-' + #pageSize + '-' + #sortBy + '-' + #sortOrder + '-' + #keyword + '-' + #category")
     public ProductResponse getAllProducts(Integer pageNumber, Integer pageSize, String sortBy, String sortOrder, String keyword, String category) {
 
         Sort sortByAndOrder = sortOrder.equalsIgnoreCase("asc")
@@ -162,6 +171,8 @@ public class ProductServiceImpl implements ProductService{
 
 
     @Override
+    @Cacheable(value = "products",
+            key = "'admin-' + #pageNumber + '-' + #pageSize + '-' + #sortBy + '-' + #sortOrder")
     public ProductResponse getAllProductsForAdmin(Integer pageNumber, Integer pageSize, String sortBy, String sortOrder) {
         Sort sortByAndOrder = sortOrder.equalsIgnoreCase("asc")
                 ? Sort.by(sortBy).ascending()
@@ -294,6 +305,7 @@ public class ProductServiceImpl implements ProductService{
     }
 
     @Override
+    @Cacheable(value = "productById", key = "#productId")
     public ProductDTO getProductById(Long productId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "productId", productId));
@@ -301,6 +313,11 @@ public class ProductServiceImpl implements ProductService{
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "products", allEntries = true),
+            @CacheEvict(value = "productById", key = "#productId"),
+            @CacheEvict(value = "featuredProducts", allEntries = true)
+    })
     public ProductDTO updateProduct(Long productId, ProductDTO productDTO) {
         //Get the existing product from DB
         Product productFromDb = productRepository.findById(productId)
@@ -391,6 +408,11 @@ public class ProductServiceImpl implements ProductService{
 
     @Transactional
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "products", allEntries = true),
+            @CacheEvict(value = "productById", key = "#productId"),
+            @CacheEvict(value = "featuredProducts", allEntries = true)
+    })
     public ProductDTO deleteProduct(Long productId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "productId", productId));
@@ -419,6 +441,11 @@ public class ProductServiceImpl implements ProductService{
 
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "products", allEntries = true),
+            @CacheEvict(value = "productById", key = "#productId"),
+            @CacheEvict(value = "featuredProducts", allEntries = true)
+    })
     public ProductDTO updateProductImage(Long productId, MultipartFile image) throws IOException {
         // get product from DB
         Product productFromDB =productRepository.findById(productId)
@@ -443,6 +470,11 @@ public class ProductServiceImpl implements ProductService{
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "products", allEntries = true),
+            @CacheEvict(value = "productById", key = "#productId"),
+            @CacheEvict(value = "featuredProducts", allEntries = true)
+    })
     public ProductDTO updateProductImages(Long productId, List<MultipartFile> images) throws IOException {
         Product productFromDB = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "productId", productId));
@@ -478,6 +510,7 @@ public class ProductServiceImpl implements ProductService{
     }
 
     @Override
+    @Cacheable(value = "featuredProducts", key = "'featured-all'")
     public List<ProductDTO> getFeaturedProducts() {
         // 1. Fetch from DB using the new Repo method
         List<Product> featuredProducts = productRepository.findByIsFeaturedTrue();
