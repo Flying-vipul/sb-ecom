@@ -21,6 +21,12 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Long productId;
 
+    // ===== OPTIMISTIC LOCKING =====
+    // Prevents race conditions (overselling) when 2 users buy the same
+    // product simultaneously. PostgreSQL will reject the slower transaction.
+    @Version
+    private Long version;
+
     @NotBlank
     @Size(min = 3,message = "Product name must contain at least 3 characters")
     private String productName;
