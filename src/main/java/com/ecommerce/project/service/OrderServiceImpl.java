@@ -16,6 +16,9 @@ import org.json.JSONObject;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -102,6 +105,13 @@ public class OrderServiceImpl implements OrderService {
     // =========================================================================
     @Transactional
     @Override
+    @Caching(evict = {
+            // When an order is placed, stock is reduced → product cache must be cleared
+            // so users don't see wrong/old quantity numbers
+            @CacheEvict(value = "products", allEntries = true),
+            @CacheEvict(value = "productById", allEntries = true),
+            @CacheEvict(value = "featuredProducts", allEntries = true)
+    })
     public OrderDTO placeOrder(
             String emailId, Long addressId, String paymentMethod,
             String pgName, String razorpayPaymentId, String pgStatus,
@@ -175,13 +185,32 @@ public class OrderServiceImpl implements OrderService {
             orderItem.setSelectedColor(cartItem.getSelectedColor());
             orderItems.add(orderItem);
 
-            // Decrement stock
+            // RACE CONDITION GUARD: Check stock AGAIN right before decrement
+            // (user may have added to cart when stock was 1, but someone else
+            // bought it in between — we must check fresh from DB here)
             Product product = cartItem.getProduct();
+            if (product.getQuantity() < cartItem.getQuantity()) {
+                throw new APIException(
+                    "Sorry! '" + product.getProductName() + "' is now out of stock. " +
+                    "Only " + product.getQuantity() + " left."
+                );
+            }
             product.setQuantity(product.getQuantity() - cartItem.getQuantity());
             productsToUpdate.add(product);
         }
         orderItems = orderItemRepository.saveAll(orderItems);
-        productRepository.saveAll(productsToUpdate);
+
+        // OPTIMISTIC LOCK: If two transactions tried to update the same product
+        // simultaneously, PostgreSQL rejects the slower one here with a version mismatch.
+        // We catch it and give a friendly error instead of a 500 crash.
+        try {
+            productRepository.saveAll(productsToUpdate);
+        } catch (OptimisticLockingFailureException e) {
+            throw new APIException(
+                "Another customer just bought this item at the same time. " +
+                "Please refresh and try again!"
+            );
+        }
 
         // 7. Clear the cart after successful order
         cartService.clearCart(cart.getCartId());
