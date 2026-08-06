@@ -9,12 +9,13 @@ import com.ecommerce.project.payload.CategoryResponse;
 import jakarta.validation.Valid;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Pageable;
-
 
 import java.util.List;
 
@@ -31,6 +32,8 @@ public class CategoryServiceImpl implements CategoryService {
     private ModelMapper modelMapper;
 
     @Override
+    @Cacheable(value = "categories",
+            key = "#pageNumber + '-' + #pageSize + '-' + #sortBy + '-' + #sortOrder")
     public CategoryResponse getAllCategories(Integer pageNumber, Integer pageSize, String sortBy, String sortOrder) {
 
         Sort sortByAndOrder = sortOrder.equalsIgnoreCase("asc")
@@ -59,6 +62,7 @@ public class CategoryServiceImpl implements CategoryService {
 
 
     @Override
+    @CacheEvict(value = "categories", allEntries = true)
     public CategoryDTO createCategory(@Valid CategoryDTO categoryDTO) {
         Category category = modelMapper.map(categoryDTO,Category.class);
 //        category.setCategoryId(nextId++);
@@ -71,6 +75,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @CacheEvict(value = "categories", allEntries = true)
     public CategoryDTO deleteCategory(Long categoryId) {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category","categoryId",categoryId));
@@ -90,6 +95,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @CacheEvict(value = "categories", allEntries = true)
     public CategoryDTO updateCategory(CategoryDTO categoryDTO, Long categoryId) {
 
         Category savedCategory = categoryRepository.findById(categoryId)
