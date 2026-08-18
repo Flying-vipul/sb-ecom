@@ -12,11 +12,10 @@ import java.util.Map;
 /**
  * Lightweight health check endpoint — used by cron-job.org to ping the server
  * every 14 minutes so Render Free Tier never goes to sleep (cold start bypass).
- *
  * Setup:
  *  1. Deploy this to Render.
  *  2. Go to https://cron-job.org → Create cronjob
- *     URL:      https://your-backend.onrender.com/api/health
+ *     URL:  https://your-backend.onrender.com/api/health
  *     Schedule: Every 14 minutes
  *  3. That's it — server stays warm 24/7 within Render's 750 free hours/month.
  */
