@@ -1,4 +1,4 @@
-package com.ecommerce.project.controller;
+﻿package com.ecommerce.project.controller;
 
 import com.ecommerce.project.model.AppRole;
 import com.ecommerce.project.model.RefreshToken;
@@ -72,7 +72,6 @@ public class AuthController  {
             @RequestBody LoginRequest loginRequest,
             jakarta.servlet.http.HttpServletRequest httpRequest) {
 
-        // ── RATE LIMIT CHECK ────────────────────────────────────────────────
         // Extract real client IP (handles reverse proxies like Render/Nginx)
         String clientIp = httpRequest.getHeader("X-Forwarded-For");
         if (clientIp == null || clientIp.isBlank()) {
@@ -88,7 +87,6 @@ public class AuthController  {
             map.put("Status", false);
             return new ResponseEntity<>(map, HttpStatus.TOO_MANY_REQUESTS); // 429
         }
-        // ────────────────────────────────────────────────────────────────────
 
         // ZAPPIT SECURITY BLOCK: Check if user verified their email before letting them log in
         User user = userRepository.findByUserName(loginRequest.getUsername()).orElse(null);
@@ -111,11 +109,11 @@ public class AuthController  {
                             loginRequest.getPassword()
                     )
             );
-            //  Login succeeded — clear failed attempt counter for this IP
+            //  Login succeeded  clear failed attempt counter for this IP
             authRateLimiterService.clearAttempts(clientIp);
 
         } catch (AuthenticationException exception) {
-            //  Login failed — record failed attempt for this IP
+            //  Login failed  record failed attempt for this IP
             authRateLimiterService.recordFailedAttempt(clientIp);
 
             Map<String, Object> map = new HashMap<>();
@@ -131,7 +129,7 @@ public class AuthController  {
         // Generate short-lived access token (15 min) as HttpOnly cookie
         ResponseCookie jwtCookie = jwtUtils.generateJwtCookie(userDetails);
 
-        // Generate long-lived refresh token (7 days) — stored in DB + HttpOnly cookie
+        // Generate long-lived refresh token (7 days)  stored in DB + HttpOnly cookie
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getUsername());
         ResponseCookie refreshCookie = jwtUtils.generateRefreshTokenCookie(refreshToken.getToken());
 
@@ -231,7 +229,7 @@ public class AuthController  {
             String generatedOtp = authService.generateAndSetOtp(user.getEmail());
             emailService.sendOtpEmail(user.getEmail(), generatedOtp);
         } catch (Exception e) {
-            // User is registered in DB. Email failed — tell them to use Resend OTP.
+            // User is registered in DB. Email failed  tell them to use Resend OTP.
             return ResponseEntity.status(500)
                     .body(new MessageResponse("Account created, but email delivery failed. Please use \"Resend Verification Code\" on the OTP page. (" + e.getMessage() + ")"));
         }
@@ -327,7 +325,7 @@ public class AuthController  {
                     tokenBlacklistService.blacklistToken(jwt, remainingMs);
                 }
             } catch (Exception e) {
-                // Token may already be expired — safe to ignore
+                // Token may already be expired  safe to ignore
             }
         }
 
@@ -337,7 +335,7 @@ public class AuthController  {
             try {
                 refreshTokenService.deleteByUsername(authentication.getName());
             } catch (Exception e) {
-                // User may not have a refresh token — safe to ignore
+                // User may not have a refresh token  safe to ignore
             }
         }
 
@@ -351,11 +349,10 @@ public class AuthController  {
     }
 
     /**
-     * Refresh Token Endpoint — WITH TOKEN ROTATION
+     * Refresh Token Endpoint  WITH TOKEN ROTATION
      * React calls this when the access token expires (every 15 min).
-     *
      * ROTATION: The old refresh token is deleted and a NEW one is issued.
-     * This means a stolen refresh token can only be used ONCE — after that
+     * This means a stolen refresh token can only be used ONCE  after that
      * it's gone from the DB and permanently invalid.
      */
     @PostMapping("/refresh-token")
@@ -381,19 +378,16 @@ public class AuthController  {
                 .map(oldToken -> {
                     User user = oldToken.getUser();
 
-                    // ── TOKEN ROTATION ──────────────────────────────────────
-                    // Delete the old refresh token — it can never be used again
+                    // Delete the old refresh token  it can never be used again
                     // Create a  refresh token for this user
                     RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user.getUserName());
 
                     // Issue a new access token WITH embedded claims (zero DB on next requests)
-                    UserDetailsImpl userDetails = org.springframework.security.core.context.SecurityContextHolder
-                            .getContext().getAuthentication() != null
-                            ? (UserDetailsImpl) org.springframework.security.core.context.SecurityContextHolder
-                                    .getContext().getAuthentication().getPrincipal()
-                            : null;
-
-                    String newAccessToken = jwtUtils.generateTokenFromUsername(user.getUserName());
+                    // BUG FIX: Use generateToken(UserDetailsImpl) so the new JWT embeds
+                    // id, email, and roles as claims — this keeps the FAST PATH in
+                    // AuthTokenFilter active (zero DB calls per request after refresh).
+                    UserDetailsImpl userDetails = UserDetailsImpl.build(user);
+                    String newAccessToken = jwtUtils.generateToken(userDetails);
                     ResponseCookie newRefreshCookie = jwtUtils.generateRefreshTokenCookie(newRefreshToken.getToken());
 
                     Map<String, String> responseMap = new HashMap<>();
@@ -440,11 +434,11 @@ public class AuthController  {
             emailService.sendPasswordResetOtpEmail(email.trim(), otp);
             return ResponseEntity.ok(new MessageResponse("Password reset code sent! Check your email inbox."));
         } catch (RuntimeException e) {
-            // Business logic error (user not found, locked) → 400
+            // Business logic error (user not found, locked)  400
             if (e.getMessage() != null && (e.getMessage().contains("No account") || e.getMessage().contains("locked"))) {
                 return ResponseEntity.badRequest().body(new MessageResponse(e.getMessage()));
             }
-            // SMTP failure → 500
+            // SMTP failure â†’ 500
             return ResponseEntity.status(500)
                     .body(new MessageResponse("Reset code was generated but email delivery failed. Please try again. (" + e.getMessage() + ")"));
         }
@@ -467,3 +461,5 @@ public class AuthController  {
         }
     }
 }
+
+
