@@ -74,7 +74,6 @@ public class TokenBlacklistService {
 
     /**
      * Checks if a JWT has been blacklisted (user logged out).
-     *
      * FAIL-SECURE: If Redis is unreachable, returns TRUE (deny access).
      * This is intentional — security takes priority over availability.
      * A Redis outage will deny all users until Redis recovers.
@@ -94,9 +93,8 @@ public class TokenBlacklistService {
     }
 
     /**
-     * Produces a SHA-256 hex digest of the token.
+     * Produces the SHA-256 hex digest of the token.
      * Converts a 300+ char JWT into a fixed 64-char key.
-     *
      * SHA-256 is one-way — the original token cannot be recovered from the hash.
      */
     private String hashToken(String token) {
