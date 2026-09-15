@@ -35,13 +35,9 @@ public class JwtUtils {
     @Value("${spring.ecom.app.jwtCookieName:ecom-jwt}")
     private String jwtCookie;
 
-    // ==========================================
-    // TOKEN EXTRACTION FROM REQUEST
-    // ==========================================
 
     public String getJwtFromHeader(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
-        logger.debug("Authorization Header: {} ", bearerToken);
         if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
         }
@@ -56,9 +52,7 @@ public class JwtUtils {
         return null;
     }
 
-    // ==========================================
-    // COOKIE HELPERS
-    // ==========================================
+
 
     public ResponseCookie generateJwtCookie(UserDetailsImpl userPrincipal) {
         String jwt = generateToken(userPrincipal);
@@ -103,9 +97,7 @@ public class JwtUtils {
                 .build();
     }
 
-    // ==========================================
-    // TOKEN GENERATION
-    // ==========================================
+
 
     public String generateToken(UserDetailsImpl userPrincipal) {
         List<String> roles = userPrincipal.getAuthorities()
@@ -140,9 +132,6 @@ public class JwtUtils {
                 .compact();
     }
 
-    // ==========================================
-    // CLAIM EXTRACTORS
-    // ==========================================
 
     public String getUsernameByJwtTokens(String token) {
         return parseClaims(token).getSubject();
@@ -170,9 +159,6 @@ public class JwtUtils {
         return parseClaims(token).getExpiration();
     }
 
-    // ==========================================
-    // VALIDATION & HELPERS
-    // ==========================================
 
     public boolean validateJwtToken(String authToken) {
         try {
