@@ -67,8 +67,18 @@ public class EmailService {
             }
 
         } catch (HttpClientErrorException e) {
-            logger.error("Brevo API error sending to {}: {} — {}", toEmail, e.getStatusCode(), e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to send email via Brevo: " + e.getResponseBodyAsString(), e);
+            // getResponseBodyAsString() can be empty if RestTemplate already consumed the stream.
+            // Use getResponseBodyAsByteArray() + explicit charset as a fallback.
+            String brevoBody = e.getResponseBodyAsString();
+            if (brevoBody == null || brevoBody.isBlank()) {
+                byte[] raw = e.getResponseBodyAsByteArray();
+                brevoBody = raw != null && raw.length > 0
+                        ? new String(raw, java.nio.charset.StandardCharsets.UTF_8)
+                        : "(empty response body)";
+            }
+            logger.error("Brevo API {} error sending to {}: {}", e.getStatusCode(), toEmail, brevoBody);
+            throw new RuntimeException(
+                    "Failed to send email via Brevo [" + e.getStatusCode() + "]: " + brevoBody, e);
         } catch (Exception e) {
             logger.error("Failed to send email to {} | Subject: {} | Error: {}", toEmail, subject, e.getMessage(), e);
             throw new RuntimeException("Failed to send email: " + e.getMessage(), e);
