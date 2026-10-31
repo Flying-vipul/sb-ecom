@@ -17,7 +17,7 @@ import java.util.UUID;
 public class RefreshTokenService {
 
     // How long refresh tokens last — 7 days (604800000 ms), from application.properties
-    @Value("${spring.app.refreshTokenExpirationMs}")
+    @Value("${spring.app.jwtExpirationMs}")
     private Long refreshTokenExpirationMs;
 
     @Autowired
