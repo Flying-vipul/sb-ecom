@@ -1,5 +1,7 @@
 package com.ecommerce.project.service;
 
+import java.util.List;
+
 import com.ecommerce.project.payload.OrderDTO;
 import com.ecommerce.project.payload.OrderResponse;
 import jakarta.transaction.Transactional;
@@ -18,7 +20,7 @@ public interface OrderService {
 
     OrderResponse getAllSellerOrders(Integer pageNumber, Integer pageSize, String sortBy, String sortOrder);
 
-    java.util.List<OrderDTO> getUserOrders(String emailId);
+    List<OrderDTO> getUserOrders(String emailId);
 
     
 }
